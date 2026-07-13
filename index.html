@@ -298,3 +298,23 @@
   </script>
 </body>
 </html>
+
+async function testLogin() {
+
+  const fd = new FormData();
+
+  fd.append('action', 'login');
+
+  fd.append('userId', 'COL001');   
+
+  fd.append('password', '1234'); 
+
+  const res = await fetch(https://script.google.com/macros/s/AKfycbz24mpGGvc_-AcRgdXdUQ0hQeUtkXlXGIB91plhd3DUppxI5ObvQDWMdZekG-BL78I8/exec, { method: 'POST', body: fd });
+
+  const data = await res.json();
+
+  console.log(data);
+
+  alert(JSON.stringify(data, null, 2));
+
+}
