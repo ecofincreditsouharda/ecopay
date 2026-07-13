@@ -295,26 +295,28 @@
         }
       }, 2200);
     };
+
+    async function testLogin() {
+      const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbz24mpGGvc_-AcRgdXdUQ0hQeUtkXlXGIB91plhd3DUppxI5ObvQDWMdZekG-BL78I8/exec';
+      
+      const fd = new FormData();
+      fd.append('action', 'login');
+      fd.append('userId', 'COL001');
+      fd.append('password', '1234');
+
+      try {
+        const res = await fetch(WEB_APP_URL, { method: 'POST', body: fd });
+        const data = await res.json();
+        console.log(data);
+        alert(JSON.stringify(data, null, 2));
+      } catch (err) {
+        console.error(err);
+        alert('Error: ' + err.message);
+      }
+    }
+    
   </script>
 </body>
 </html>
 
-async function testLogin() {
 
-  const fd = new FormData();
-
-  fd.append('action', 'login');
-
-  fd.append('userId', 'COL001');   
-
-  fd.append('password', '1234'); 
-
-  const res = await fetch(https://script.google.com/macros/s/AKfycbz24mpGGvc_-AcRgdXdUQ0hQeUtkXlXGIB91plhd3DUppxI5ObvQDWMdZekG-BL78I8/exec, { method: 'POST', body: fd });
-
-  const data = await res.json();
-
-  console.log(data);
-
-  alert(JSON.stringify(data, null, 2));
-
-}
