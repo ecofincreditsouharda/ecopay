@@ -296,6 +296,7 @@
       }, 2200);
     };
 
+    /* ================== TEST LOGIN FUNCTION ================== */
     async function testLogin() {
       const WEB_APP_URL = 'https://script.google.com/macros/s/AKfycbz24mpGGvc_-AcRgdXdUQ0hQeUtkXlXGIB91plhd3DUppxI5ObvQDWMdZekG-BL78I8/exec';
       
@@ -307,14 +308,25 @@
       try {
         const res = await fetch(WEB_APP_URL, { method: 'POST', body: fd });
         const data = await res.json();
-        console.log(data);
+        console.log("Response:", data);
         alert(JSON.stringify(data, null, 2));
       } catch (err) {
         console.error(err);
-        alert('Error: ' + err.message);
+        alert('Request Failed: ' + err.message);
       }
     }
-    
+
+    // Auto-run test when page loads (for quick checking)
+    window.onload = function() {
+      // Your original onload code...
+      setTimeout(() => {
+        document.getElementById('splash').style.display = 'none';
+        document.getElementById('app').classList.remove('hidden');
+        
+        // Run test automatically
+        testLogin();
+      }, 2200);
+    };
   </script>
 </body>
 </html>
