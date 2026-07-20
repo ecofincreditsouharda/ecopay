@@ -271,7 +271,7 @@
       <div class="mt-4 space-y-2">
         <a id="receipt-whatsapp" href="#" target="_blank"
            class="block text-center bg-green-500 hover:bg-green-600 text-white font-semibold py-3 rounded-2xl">
-          📲 Share on WhatsApp
+          📲 Share Receipt on WhatsApp
         </a>
         <a id="receipt-pdf-link" href="#" target="_blank"
            class="block text-center bg-emerald-600 hover:bg-emerald-700 text-white font-semibold py-3 rounded-2xl">
@@ -365,6 +365,18 @@
 
     function showScreen(screen) { hide('login-screen'); hide('dashboard'); show(screen); }
 
+    /* ---- FIX: persist last receipt across reloads / new sessions ---- */
+    function saveLastReceipt(r) {
+      lastReceipt = r;
+      try { localStorage.setItem('ecofinLastReceipt', JSON.stringify(r)); } catch (e) {}
+    }
+    function loadLastReceipt() {
+      try {
+        const raw = localStorage.getItem('ecofinLastReceipt');
+        if (raw) lastReceipt = JSON.parse(raw);
+      } catch (e) {}
+    }
+
     /* ================== PAYMENT MODE ================== */
     function setMode(mode) {
       paymentMode = mode;
@@ -377,7 +389,7 @@
       if (mode === 'UPI') show('utr-wrap'); else { hide('utr-wrap'); document.getElementById('utr-input').value = ''; }
     }
 
-    /* ================== LOGIN (your working version) ================== */
+    /* ================== LOGIN ================== */
     async function login(userId, password) {
       const btn = document.getElementById('login-btn');
       btn.disabled = true;
@@ -388,7 +400,7 @@
         if (data.success) {
           currentUser = data;
           localStorage.setItem('ecofinUser', JSON.stringify(data));
-          enterDashboard(); // show dashboard directly (no reload needed)
+          enterDashboard();
         } else {
           alert(data.message || "Login Failed");
         }
@@ -585,8 +597,8 @@
         });
         loader(false);
         if (!data.success) { alert(data.message); return; }
-        lastReceipt = data.receipt;
-        lastReceipt.phone = selectedMember.phone;
+        data.receipt.phone = data.receipt.phone || selectedMember.phone;
+        saveLastReceipt(data.receipt);   // FIX: persists across reloads
         hide('member-card');
         document.getElementById('search-input').value = '';
         selectedMember = null;
@@ -628,15 +640,21 @@
         (r.closed ? '<p class="text-center font-bold text-emerald-700 mt-2">🎉 LOAN FULLY CLOSED 🎉</p>' : '') +
         '<p class="text-center text-xs text-gray-400 mt-3">Thank you for your payment!</p>';
 
+      /* FIX: WhatsApp message now leads with the PDF receipt link,
+         so the customer opens a real, formatted receipt — the text
+         below it is only a short confirmation. */
       const msg = encodeURIComponent(
-        `*ECOFIN CREDIT SOUHARDA*\nPayment Receipt: ${r.receiptNo}\n` +
-        `Member: ${r.memberName} (${r.memberId})\n${r.loanType} EMI: ${r.emiNumber}\n` +
-        `EMI Paid: Rs.${r.amountPaid}\n` +
-        (r.penaltyCollected > 0 ? `Penalty: Rs.${r.penaltyCollected}\nTotal Received: Rs.${r.totalReceived}\n` : '') +
+        `*${'ECOFIN CREDIT SOUHARDA'}*\n` +
+        `✅ Payment Received: *Rs.${r.totalReceived || r.amountPaid}*\n\n` +
+        (r.pdfUrl ? `🧾 *Your Official Receipt:*\n${r.pdfUrl}\n\n` : '') +
+        `Receipt No: ${r.receiptNo}\n` +
+        `Member: ${r.memberName} (${r.memberId})\n` +
+        `${r.loanType} EMI: ${r.emiNumber}\n` +
         `Mode: ${r.paymentMode}` + (r.utrNumber ? ` (UTR: ${r.utrNumber})` : '') + `\n` +
-        `New Outstanding: Rs.${r.newOutstanding}\n` +
+        `Outstanding Balance: Rs.${r.newOutstanding}\n` +
         (r.nextDueDate ? `Next Due: ${r.nextDueDate}\n` : '') +
-        (r.pdfUrl ? `Receipt PDF: ${r.pdfUrl}\n` : '') + `Thank you!`);
+        (r.closed ? `🎉 Loan Fully Closed!\n` : '') +
+        `\nThank you! — ${r.collectorName}`);
       const phone = (r.phone || '').replace(/\D/g, '');
       document.getElementById('receipt-whatsapp').href =
         phone ? `https://wa.me/${phone.length === 10 ? '91' + phone : phone}?text=${msg}`
@@ -649,9 +667,26 @@
       show('receipt-modal');
     }
 
-    function printLastReceipt() {
-      if (lastReceipt) showReceiptModal(lastReceipt);
-      else alert('No receipt in this session yet. See "Today\'s Collection List" for receipt links.');
+    /* FIX: Last Receipt now falls back to localStorage, then the server */
+    async function printLastReceipt() {
+      if (lastReceipt) { showReceiptModal(lastReceipt); return; }
+      loadLastReceipt();
+      if (lastReceipt) { showReceiptModal(lastReceipt); return; }
+      // Nothing local — fetch the most recent receipt from the sheet
+      loader(true);
+      try {
+        const data = await api('getLastReceipt');
+        loader(false);
+        if (data.success && data.receipt) {
+          saveLastReceipt(data.receipt);
+          showReceiptModal(data.receipt);
+        } else {
+          alert(data.message || 'No receipts found yet. See "Today\'s Collection List" for receipt links.');
+        }
+      } catch (e) {
+        loader(false);
+        alert('Could not fetch the last receipt. Please try again.');
+      }
     }
 
     /* ================== DAILY CLOSING ================== */
@@ -691,7 +726,7 @@
       finally { btn.disabled = false; btn.textContent = 'Save Closing'; }
     }
 
-    /* ================== FORM SUBMIT (your working version) ================== */
+    /* ================== FORM SUBMIT ================== */
     document.getElementById('login-form').addEventListener('submit', function(e) {
       e.preventDefault();
       const userId = document.getElementById('userId').value.trim();
@@ -709,10 +744,11 @@
       setTimeout(() => {
         document.getElementById('splash').style.display = 'none';
         document.getElementById('app').classList.remove('hidden');
+        loadLastReceipt();   // FIX: restore last receipt after reload
         const saved = localStorage.getItem('ecofinUser');
         if (saved) {
           currentUser = JSON.parse(saved);
-          enterDashboard();   // returning user -> straight to dashboard
+          enterDashboard();
         } else {
           showScreen('login-screen');
         }
